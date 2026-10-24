@@ -316,7 +316,7 @@ public struct OverviewView: View {
                     }
                 }
                 
-                // MARK: - Lifetime Statistics
+                // MARK: - Lifetime Statistics (Balanced 3 Columns)
                 MetricCard(
                     title: "Lifetime Statistics",
                     subtitle: "\(appState.aggregateStats.totalSessionsCount) Total Sessions",
@@ -324,6 +324,7 @@ public struct OverviewView: View {
                     accentColor: .emeraldAccent
                 ) {
                     HStack(spacing: 0) {
+                        // 1. Lifetime Energy
                         VStack(alignment: .leading, spacing: 3) {
                             Text("LIFETIME ENERGY")
                                 .font(.system(size: 9, weight: .bold))
@@ -331,7 +332,7 @@ public struct OverviewView: View {
                                 .tracking(0.6)
                             Text(appState.aggregateStats.formattedLifetimeEnergy)
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(.amberAccent)
                                 .monospacedDigit()
                             Text("\(UnitFormatter.formatEnergy(wattHours: appState.aggregateStats.lifetimeEnergyWh)) Total")
                                 .font(.system(size: 10, design: .monospaced))
@@ -341,6 +342,7 @@ public struct OverviewView: View {
                         
                         Divider().background(Color.white.opacity(0.08)).frame(height: 44)
                         
+                        // 2. Lifetime Wi-Fi
                         VStack(alignment: .leading, spacing: 3) {
                             Text("LIFETIME WI-FI")
                                 .font(.system(size: 9, weight: .bold))
@@ -348,9 +350,28 @@ public struct OverviewView: View {
                                 .tracking(0.6)
                             Text(UnitFormatter.formatDataSize(bytes: appState.aggregateStats.lifetimeTotalBytes))
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(.cyanAccent)
                                 .monospacedDigit()
                             Text("↓ \(UnitFormatter.formatDataSize(bytes: appState.aggregateStats.lifetimeBytesDownloaded)) In")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 16)
+                        
+                        Divider().background(Color.white.opacity(0.08)).frame(height: 44)
+                        
+                        // 3. Total Uptime
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("TOTAL UPTIME")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.white.opacity(0.45))
+                                .tracking(0.6)
+                            Text(appState.formattedLifetimeAwake)
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundColor(.emeraldAccent)
+                                .monospacedDigit()
+                            Text("System: \(appState.formattedSystemUptime)")
                                 .font(.system(size: 10, design: .monospaced))
                                 .foregroundColor(.white.opacity(0.4))
                         }

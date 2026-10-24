@@ -7,6 +7,7 @@ public struct HistoryView: View {
     @ObservedObject var appState: AppState
     @State private var selectedSession: UsageSession?
     @State private var chartMetric: ChartMetric = .energy
+    @Namespace private var historyMetricNamespace
     
     public enum ChartMetric: String, CaseIterable, Identifiable {
         case energy = "Energy (Wh)"
@@ -121,11 +122,11 @@ public struct HistoryView: View {
                     accentColor: chartMetric.accentColor
                 ) {
                     VStack(spacing: 12) {
-                        // 1-Click Chart Metric Selector Pills
+                        // 1-Click Liquid Glass Chart Metric Selector Pills
                         HStack(spacing: 8) {
                             ForEach(ChartMetric.allCases) { m in
                                 Button {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                    withAnimation(DesignSystem.liquidSpring) {
                                         chartMetric = m
                                     }
                                 } label: {
@@ -137,24 +138,47 @@ public struct HistoryView: View {
                                     }
                                     .padding(.horizontal, 12)
                                     .frame(height: 28)
-                                    .foregroundColor(chartMetric == m ? .white : .white.opacity(0.55))
+                                    .foregroundColor(chartMetric == m ? .white : .white.opacity(0.60))
                                     .background(
                                         ZStack {
                                             if chartMetric == m {
                                                 RoundedRectangle(cornerRadius: 6)
-                                                    .fill(m.accentColor.opacity(0.20))
-                                                RoundedRectangle(cornerRadius: 6)
-                                                    .strokeBorder(m.accentColor.opacity(0.55), lineWidth: 1)
+                                                    .fill(
+                                                        LinearGradient(
+                                                            colors: [m.accentColor.opacity(0.28), m.accentColor.opacity(0.12)],
+                                                            startPoint: .topLeading,
+                                                            endPoint: .bottomTrailing
+                                                        )
+                                                    )
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 6)
+                                                            .strokeBorder(
+                                                                LinearGradient(
+                                                                    colors: [m.accentColor.opacity(0.75), m.accentColor.opacity(0.25)],
+                                                                    startPoint: .topLeading,
+                                                                    endPoint: .bottomTrailing
+                                                                ),
+                                                                lineWidth: 1
+                                                            )
+                                                    )
+                                                    .overlay(
+                                                        DesignSystem.liquidGlassHighlight
+                                                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                                                    )
+                                                    .shadow(color: m.accentColor.opacity(0.35), radius: 6, x: 0, y: 2)
+                                                    .matchedGeometryEffect(id: "liquidHistoryMetricPill", in: historyMetricNamespace)
                                             } else {
                                                 RoundedRectangle(cornerRadius: 6)
                                                     .fill(Color.white.opacity(0.04))
-                                                RoundedRectangle(cornerRadius: 6)
-                                                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 6)
+                                                            .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                                                    )
                                             }
                                         }
                                     )
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.liquidTactile(scale: 0.94))
                             }
                             
                             Spacer()
@@ -250,10 +274,12 @@ public struct HistoryView: View {
                             // Rows
                             LazyVStack(spacing: 6) {
                                 ForEach(appState.recentSessions) { session in
-                                    SessionRowView(session: session)
-                                        .onTapGesture {
-                                            selectedSession = session
-                                        }
+                                    Button {
+                                        selectedSession = session
+                                    } label: {
+                                        SessionRowView(session: session)
+                                    }
+                                    .buttonStyle(.liquidTactile(scale: 0.985))
                                 }
                             }
                         }
@@ -496,7 +522,7 @@ struct SessionDetailSheet: View {
                                     )
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.liquidTactile(scale: 0.94))
                     .keyboardShortcut(.defaultAction)
                 }
                 .padding(.bottom, 4)

@@ -1,37 +1,60 @@
 import SwiftUI
 import AppKit
 
-/// Precision macOS Dark Design System.
-/// Clean, bespoke, non-generic typography, deliberate spacing, and razor-sharp borders.
+/// Precision macOS Ultra-Dark Black & Liquid Glass Design System.
+/// Pitch-black architectural foundations, frosted specular refraction edges,
+/// dynamic chromatic ambient halos, and fluid liquid-spring physics.
 public enum DesignSystem {
     public static let cornerRadius: CGFloat = 12.0
     public static let cardPadding: CGFloat = 16.0
     
-    // Solid architectural dark foundations
-    public static let windowBackground = Color(red: 0.06, green: 0.07, blue: 0.09)
-    public static let cardBackground = Color(red: 0.10, green: 0.11, blue: 0.15)
+    // Pitch-black architectural obsidian foundations
+    public static let windowBackground = Color(red: 0.015, green: 0.018, blue: 0.024)
+    public static let cardBackground = Color(red: 0.045, green: 0.050, blue: 0.065).opacity(0.85)
+    public static let elevatedSurface = Color(red: 0.075, green: 0.080, blue: 0.105)
+    public static let darkSurface = Color(red: 0.035, green: 0.038, blue: 0.050)
+    public static let glassSurface = Color.white.opacity(0.045)
     public static let cardBorder = Color.white.opacity(0.08)
     public static let subtleBorder = Color.white.opacity(0.05)
-    public static let elevatedSurface = Color(red: 0.13, green: 0.15, blue: 0.20)
-    public static let darkSurface = Color(red: 0.10, green: 0.11, blue: 0.15)
-    public static let glassSurface = Color.white.opacity(0.05)
     
-    // Deliberate specular edge gradient
+    // Razor-sharp specular liquid-glass border gradients
     public static let glassBorderGradient = LinearGradient(
         colors: [
-            Color.white.opacity(0.18),
-            Color.white.opacity(0.06),
-            Color.white.opacity(0.02)
+            Color.white.opacity(0.24),
+            Color.white.opacity(0.08),
+            Color.white.opacity(0.02),
+            Color.clear
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
     
-    // Header gradient
+    public static let specularRimGradient = LinearGradient(
+        colors: [
+            Color.white.opacity(0.32),
+            Color.white.opacity(0.10),
+            Color.white.opacity(0.03)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    
+    // Specular diagonal liquid sheen
+    public static let liquidGlassHighlight = LinearGradient(
+        colors: [
+            Color.white.opacity(0.08),
+            Color.white.opacity(0.02),
+            Color.clear
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    
+    // Header obsidian-to-black gradient
     public static let headerGradient = LinearGradient(
         colors: [
-            Color(red: 0.09, green: 0.11, blue: 0.15),
-            Color(red: 0.07, green: 0.08, blue: 0.11)
+            Color(red: 0.040, green: 0.045, blue: 0.058),
+            Color(red: 0.015, green: 0.018, blue: 0.024)
         ],
         startPoint: .top,
         endPoint: .bottom
@@ -39,28 +62,24 @@ public enum DesignSystem {
     
     public static let glassCardGradient = LinearGradient(
         colors: [
-            Color.white.opacity(0.04),
+            Color.white.opacity(0.05),
             Color.white.opacity(0.01)
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
     
-    public static let glassHeaderGradient = LinearGradient(
-        colors: [
-            Color(red: 0.09, green: 0.11, blue: 0.15),
-            Color(red: 0.07, green: 0.08, blue: 0.11)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
+    // Chromatic Neon Accents (Vibrant against pitch black)
+    public static let powerAccent = Color(red: 0.98, green: 0.68, blue: 0.16)   // Molten Amber Gold
+    public static let networkAccent = Color(red: 0.16, green: 0.78, blue: 0.98) // Electric Cyan
+    public static let uptimeAccent = Color(red: 0.16, green: 0.86, blue: 0.62)  // Neon Emerald
+    public static let sessionAccent = Color(red: 0.35, green: 0.68, blue: 1.00) // Deep Sky Blue
+    public static let purpleAccent = Color(red: 0.72, green: 0.46, blue: 1.00)  // Liquid Violet
     
-    // Accents
-    public static let powerAccent = Color(red: 0.96, green: 0.65, blue: 0.14)   // Amber Gold
-    public static let networkAccent = Color(red: 0.22, green: 0.74, blue: 0.97) // Glacier Cyan
-    public static let uptimeAccent = Color(red: 0.20, green: 0.83, blue: 0.60)  // Mint Emerald
-    public static let sessionAccent = Color(red: 0.38, green: 0.65, blue: 0.98) // Steel Blue
-    public static let purpleAccent = Color(red: 0.68, green: 0.45, blue: 0.98)  // Iris Purple
+    // Fluid, Snappy Liquid-Spring Animation Curves (Instant, zero-lag feel)
+    public static let liquidSpring = Animation.spring(response: 0.22, dampingFraction: 0.74, blendDuration: 0.10)
+    public static let liquidBouncy = Animation.interactiveSpring(response: 0.18, dampingFraction: 0.65, blendDuration: 0.08)
+    public static let liquidSnappy = Animation.spring(response: 0.15, dampingFraction: 0.78)
 }
 
 extension Color {
@@ -71,13 +90,15 @@ extension Color {
     public static let darkSurface = DesignSystem.darkSurface
 }
 
-/// A clean, precision macOS card container with sharp typography and perfect spacing.
+/// Liquid Glass container with ambient chromatic glow, specular refraction edge, and dark black backdrop.
 public struct MetricCard<Content: View>: View {
     let title: String
     let subtitle: String?
     let icon: String?
     let accentColor: Color?
     @ViewBuilder let content: () -> Content
+    
+    @State private var isHovered: Bool = false
     
     public init(
         title: String,
@@ -105,7 +126,7 @@ public struct MetricCard<Content: View>: View {
                 
                 Text(title)
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white.opacity(0.80))
+                    .foregroundColor(.white.opacity(0.85))
                     .textCase(.uppercase)
                     .tracking(0.6)
                 
@@ -122,12 +143,84 @@ public struct MetricCard<Content: View>: View {
         }
         .padding(DesignSystem.cardPadding)
         .background(
-            RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .fill(DesignSystem.cardBackground)
+            ZStack {
+                // Pitch-black obsidian glass
+                RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
+                    .fill(DesignSystem.cardBackground)
+                
+                // Ambient chromatic liquid glow (subtle reflection of accent color)
+                if let accent = accentColor {
+                    RadialGradient(
+                        colors: [
+                            accent.opacity(isHovered ? 0.12 : 0.05),
+                            Color.clear
+                        ],
+                        center: .topTrailing,
+                        startRadius: 0,
+                        endRadius: 220
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.cornerRadius))
+                }
+                
+                // Specular liquid glass highlight sheen
+                DesignSystem.liquidGlassHighlight
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.cornerRadius))
+            }
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignSystem.cornerRadius)
-                .strokeBorder(DesignSystem.glassBorderGradient, lineWidth: 1)
+                .strokeBorder(
+                    isHovered ? DesignSystem.specularRimGradient : DesignSystem.glassBorderGradient,
+                    lineWidth: 1
+                )
         )
+        .shadow(
+            color: Color.black.opacity(isHovered ? 0.55 : 0.35),
+            radius: isHovered ? 14 : 8,
+            x: 0,
+            y: isHovered ? 6 : 3
+        )
+        .onHover { hovering in
+            withAnimation(DesignSystem.liquidSpring) {
+                isHovered = hovering
+            }
+        }
     }
 }
+
+/// Instant tactile liquid-glass button style with physical down-scale, specular brightness, and trackpad haptic tap.
+public struct LiquidTactileButtonStyle: ButtonStyle {
+    public var pressedScale: CGFloat = 0.94
+    public var pressedOpacity: CGFloat = 0.82
+    public var haptic: Bool = true
+    
+    public init(pressedScale: CGFloat = 0.94, pressedOpacity: CGFloat = 0.82, haptic: Bool = true) {
+        self.pressedScale = pressedScale
+        self.pressedOpacity = pressedOpacity
+        self.haptic = haptic
+    }
+    
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? pressedScale : 1.0)
+            .opacity(configuration.isPressed ? pressedOpacity : 1.0)
+            .brightness(configuration.isPressed ? 0.08 : 0.0)
+            .animation(.interactiveSpring(response: 0.14, dampingFraction: 0.72), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed && haptic {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+                }
+            }
+    }
+}
+
+extension ButtonStyle where Self == LiquidTactileButtonStyle {
+    public static var liquidTactile: LiquidTactileButtonStyle {
+        LiquidTactileButtonStyle()
+    }
+    
+    public static func liquidTactile(scale: CGFloat = 0.94, opacity: CGFloat = 0.82) -> LiquidTactileButtonStyle {
+        LiquidTactileButtonStyle(pressedScale: scale, pressedOpacity: opacity)
+    }
+}
+

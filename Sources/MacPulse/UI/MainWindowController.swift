@@ -25,7 +25,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
             win.title = "MacPulse — Power & Wi-Fi Tracker"
             win.titleVisibility = .hidden
             win.titlebarAppearsTransparent = true
-            win.backgroundColor = NSColor(red: 0.06, green: 0.07, blue: 0.09, alpha: 1.0)
+            win.backgroundColor = NSColor(red: 0.015, green: 0.018, blue: 0.024, alpha: 1.0)
+            win.appearance = NSAppearance(named: .darkAqua)
             win.isReleasedWhenClosed = false
             win.delegate = self
             win.tabbingMode = .disallowed

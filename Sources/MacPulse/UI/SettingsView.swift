@@ -84,7 +84,7 @@ public struct SettingsView: View {
                                         )
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.liquidTactile(scale: 0.94))
                             .padding(.top, 2)
                         }
                     }
@@ -155,7 +155,7 @@ public struct SettingsView: View {
                                         )
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.liquidTactile(scale: 0.94))
                             
                             // Export JSON Button
                             Button {
@@ -181,7 +181,7 @@ public struct SettingsView: View {
                                         )
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.liquidTactile(scale: 0.94))
                             
                             Spacer()
                             
@@ -207,7 +207,7 @@ public struct SettingsView: View {
                                         )
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.liquidTactile(scale: 0.94))
                         }
                         
                         if let notice = exportNotification {
@@ -288,7 +288,7 @@ public struct SettingsView: View {
                                 )
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.liquidTactile(scale: 0.94))
                 }
                 .padding(.horizontal, 4)
                 .padding(.top, 4)

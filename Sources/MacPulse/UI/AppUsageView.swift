@@ -12,6 +12,7 @@ public struct AppUsageView: View {
     @State private var filterOption: AppFilterOption = .dataUsage // Default: Data Usage!
     @State private var searchText: String = ""
     @State private var selectedApp: AppUsageRecord?
+    @Namespace private var appFilterNamespace
     
     public enum TimeScope: String, CaseIterable, Identifiable {
         case activeApps = "Active Apps"
@@ -178,11 +179,11 @@ public struct AppUsageView: View {
                         )
                     }
                     
-                    // Direct Filter Options (Data Usage is default)
+                    // Direct Liquid Glass Filter Options (Data Usage is default)
                     HStack(spacing: 8) {
                         ForEach(AppFilterOption.allCases) { opt in
                             Button {
-                                withAnimation(.easeInOut(duration: 0.15)) {
+                                withAnimation(DesignSystem.liquidSpring) {
                                     filterOption = opt
                                 }
                             } label: {
@@ -194,24 +195,47 @@ public struct AppUsageView: View {
                                 }
                                 .padding(.horizontal, 12)
                                 .frame(height: 28)
-                                .foregroundColor(filterOption == opt ? .white : .white.opacity(0.55))
+                                .foregroundColor(filterOption == opt ? .white : .white.opacity(0.60))
                                 .background(
                                     ZStack {
                                         if filterOption == opt {
                                             RoundedRectangle(cornerRadius: 6)
-                                                .fill(opt.accentColor.opacity(0.20))
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .strokeBorder(opt.accentColor.opacity(0.55), lineWidth: 1)
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: [opt.accentColor.opacity(0.28), opt.accentColor.opacity(0.12)],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .strokeBorder(
+                                                            LinearGradient(
+                                                                colors: [opt.accentColor.opacity(0.75), opt.accentColor.opacity(0.25)],
+                                                                startPoint: .topLeading,
+                                                                endPoint: .bottomTrailing
+                                                            ),
+                                                            lineWidth: 1
+                                                        )
+                                                )
+                                                .overlay(
+                                                    DesignSystem.liquidGlassHighlight
+                                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                                )
+                                                .shadow(color: opt.accentColor.opacity(0.35), radius: 6, x: 0, y: 2)
+                                                .matchedGeometryEffect(id: "liquidAppFilterPill", in: appFilterNamespace)
                                         } else {
                                             RoundedRectangle(cornerRadius: 6)
                                                 .fill(Color.white.opacity(0.04))
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                                                )
                                         }
                                     }
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.liquidTactile(scale: 0.94))
                         }
                         
                         Spacer()
@@ -334,16 +358,18 @@ public struct AppUsageView: View {
                         } else {
                             LazyVStack(spacing: 6) {
                                 ForEach(displayedRecords) { record in
-                                    AppUsageRow(
-                                        record: record,
-                                        filterOption: filterOption,
-                                        maxScreenTime: maxScreenTime,
-                                        maxEnergy: maxEnergy,
-                                        maxData: maxDataBytes
-                                    )
-                                    .onTapGesture {
+                                    Button {
                                         selectedApp = record
+                                    } label: {
+                                        AppUsageRow(
+                                            record: record,
+                                            filterOption: filterOption,
+                                            maxScreenTime: maxScreenTime,
+                                            maxEnergy: maxEnergy,
+                                            maxData: maxDataBytes
+                                        )
                                     }
+                                    .buttonStyle(.liquidTactile(scale: 0.985))
                                 }
                             }
                         }
@@ -601,9 +627,24 @@ private struct AppDetailSheet: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                Button("Done") {
+                Button {
                     dismiss()
+                } label: {
+                    Text("Done")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white.opacity(0.12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .strokeBorder(Color.white.opacity(0.20), lineWidth: 0.5)
+                                )
+                        )
                 }
+                .buttonStyle(.liquidTactile(scale: 0.94))
                 .keyboardShortcut(.defaultAction)
             }
             .padding(.bottom, 4)

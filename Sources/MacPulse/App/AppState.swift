@@ -213,6 +213,18 @@ public final class AppState: ObservableObject {
         }
     }
     
+    // MARK: - Uptime Helpers
+    
+    /// Current system boot uptime formatted via UnitFormatter.
+    public var formattedSystemUptime: String {
+        UnitFormatter.formatDuration(seconds: uptimeProvider.currentBootUptime())
+    }
+    
+    /// Total tracked active uptime across all sessions formatted via UnitFormatter.
+    public var formattedLifetimeAwake: String {
+        UnitFormatter.formatDuration(seconds: aggregateStats.lifetimeAwakeSeconds)
+    }
+    
     // MARK: - Sleep & Wake Observation
     
     private func registerSleepWakeNotifications() {
