@@ -72,5 +72,11 @@ echo -n "APPL????" > "${APP_DIR}/PkgInfo"
 echo "=== Signing ${APP_NAME} (Ad-Hoc) ==="
 codesign --force --deep --sign - "${APP_NAME}"
 
-echo "=== Build Successful: ${APP_NAME} is ready! ==="
-ls -ld "${APP_NAME}"
+# 6. Create distribution zip archive
+echo "=== Packaging ${APP_NAME} into MacPulse.zip ==="
+rm -f MacPulse.zip MacPulse.zip.sha256
+ditto -c -k --keepParent "${APP_NAME}" MacPulse.zip
+shasum -a 256 MacPulse.zip > MacPulse.zip.sha256
+
+echo "=== Build Successful: ${APP_NAME} and MacPulse.zip ready! ==="
+ls -lh "${APP_NAME}" MacPulse.zip

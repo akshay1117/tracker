@@ -4,6 +4,30 @@
 
 ---
 
+## Quick Install (Terminal)
+
+Install or update **MacPulse** directly from your terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/akshay1117/tracker/main/install.sh | bash
+```
+
+> **Note for Private Repositories**: If the repository is set to private, pass your GitHub token:
+> ```bash
+> curl -fsSL -H "Authorization: token YOUR_GITHUB_TOKEN" https://raw.githubusercontent.com/akshay1117/tracker/main/install.sh | GITHUB_TOKEN=YOUR_GITHUB_TOKEN bash
+> ```
+> *Once the repository is set to Public on GitHub, the standard one-liner works anywhere without any token.*
+
+### What the installer does:
+1. Automatically detects your macOS architecture (Apple Silicon `arm64` / Intel `x86_64`).
+2. Fetches the latest pre-compiled `MacPulse.zip` from GitHub Releases.
+3. Falls back to compiling locally via Swift Command Line Tools if release assets are unavailable.
+4. Installs cleanly to `/Applications/MacPulse.app` (or `~/Applications/` if non-admin).
+5. Clears macOS Gatekeeper quarantine (`xattr -dr com.apple.quarantine`) so the app opens immediately without security prompts.
+6. Launches MacPulse in the menu bar.
+
+---
+
 ## 1. Core Capabilities
 
 1. **Per-Application Tracking**: Real-time per-application accounting for:
@@ -128,9 +152,11 @@ export DEVELOPER_DIR="/Library/Developer/CommandLineTools"
 swift test
 ```
 
-### Test Coverage Highlights (24 Tests, 5 Suites)
+### Test Coverage Highlights (35 Tests, 7 Suites)
 - **`EnergyIntegratorTests`**: Trapezoidal rule integration, linear power ramps, sleep gap rejection (> 30s), negative interval rejection, implausible wattage rejection.
 - **`NetworkAccumulatorTests`**: Monotonic speed calculation, counter reset protection, interface switching, disconnected state handling.
+- **`DynamicUnitConversionTests`**: MB to GB (1,000 MB threshold), Wh to kWh (1,000 Wh threshold), KB/s to MB/s threshold, display unit decoupling.
+- **`AppUsageTests`**: App usage record models, multi-session lifetime aggregation, sorting, query limits, reset tables.
 - **`DatabaseTests`**: Schema creation, migrations, session lifecycle persistence, atomic aggregate updates, crash recovery, CSV/JSON export, history wipe.
 - **`SessionLifecycleTests`**: Initial lid state, lid close finalization, lid reopen new session, duplicate sleep/wake notification idempotency, ClamshellOnly pause/resume, SleepOrClamshell policy.
 - **`HardwareIntegrationChecks`**: Live sysctl uptime, live clamshell monitor, live power monitor, live 64-bit Wi-Fi sampler.

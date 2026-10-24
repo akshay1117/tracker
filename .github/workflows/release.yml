@@ -1,0 +1,45 @@
+name: Release MacPulse
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14 # Apple Silicon (M1/M2/M3/M4) runner
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Developer Environment
+        run: |
+          xcode-select -p
+          swift --version
+
+      - name: Build and Package MacPulse.app
+        run: |
+          chmod +x ./build.sh
+          ./build.sh
+
+      - name: Verify Bundle Integrity
+        run: |
+          ls -lh MacPulse.app MacPulse.zip MacPulse.zip.sha256
+          codesign -vvv --deep --strict MacPulse.app
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            MacPulse.zip
+            MacPulse.zip.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
