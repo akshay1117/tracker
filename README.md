@@ -56,7 +56,7 @@ Measured on macOS 26 / arm64 using `vmmap` and `ps`:
 | :--- | :--- | :--- |
 | **Idle Memory (Footprint)** | < 30 MB | **11.7 MB** (Peak: 12.3 MB) |
 | **Idle CPU Usage** | Negligible | **0.0%** (Popover closed) |
-| **Awake Sampling Interval** | ~5.0 s | **5.0 s** (1.5 s when popover open) |
+| **Awake Sampling Interval** | 1.0 s | **1.0 s** (continuous 1-second refresh) |
 | **Sleep CPU Usage** | Zero | **0.0%** (Timers paused via `NSWorkspace`) |
 | **Disk Activity** | Minimal | **30s WAL checkpoints**, immediate on session transitions |
 | **Privileges Required** | None | **Zero root, Zero helper, Zero SIP bypass** |

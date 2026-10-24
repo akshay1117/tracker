@@ -105,7 +105,7 @@ public final class SessionManager: @unchecked Sendable {
     
     // MARK: - Periodic Tick
     
-    /// Called periodically by the timer (e.g. every 5s awake, or 1s with popover open).
+    /// Called periodically by the timer (every 1s for real-time live updates).
     public func tick() {
         lock.lock()
         defer { lock.unlock() }

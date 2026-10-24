@@ -85,7 +85,7 @@ public final class AppState: ObservableObject {
     
     // Timers
     private var sampleTimer: Timer?
-    private var currentTimerInterval: TimeInterval = 5.0
+    private var currentTimerInterval: TimeInterval = 1.0
     
     public init(
         database: DatabaseManager = DatabaseManager(),
@@ -119,7 +119,7 @@ public final class AppState: ObservableObject {
         updateActivationPolicy()
         performTick()
         refreshData()
-        startTimer(interval: 5.0)
+        startTimer(interval: 1.0)
         registerSleepWakeNotifications()
     }
     
@@ -145,8 +145,8 @@ public final class AppState: ObservableObject {
     }
     
     private func adjustTimerFrequency() {
-        // High frequency (1.5s) while popover is open for live feedback; 5s low-power idle when closed
-        let targetInterval: TimeInterval = isPopoverOpen ? 1.5 : 5.0
+        // Continuous 1.0s interval for real-time live metric refreshes
+        let targetInterval: TimeInterval = 1.0
         if targetInterval != currentTimerInterval {
             startTimer(interval: targetInterval)
         }
