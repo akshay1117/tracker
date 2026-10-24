@@ -7,6 +7,7 @@ public struct SettingsView: View {
     @ObservedObject var appState: AppState
     @State private var showingResetAlert: Bool = false
     @State private var exportNotification: String? = nil
+    @State private var restoreNotification: String? = nil
     
     public init(appState: AppState) {
         self.appState = appState
@@ -16,7 +17,7 @@ public struct SettingsView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 16) {
                 // MARK: - Menu Bar Appearance
-                MetricCard(title: "Menu Bar Display", subtitle: "Status Item Configuration", icon: "menubar.rectangle", accentColor: .amberAccent) {
+                MetricCard(title: "Menu Bar Display", subtitle: "Status Item Configuration & Recovery", icon: "menubar.rectangle", accentColor: .amberAccent) {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("Show in macOS Menu Bar", isOn: $appState.showInMenuBar)
                             .toggleStyle(.checkbox)
@@ -47,7 +48,7 @@ public struct SettingsView: View {
                                     .font(.system(size: 11))
                                     .foregroundColor(.amberAccent)
                                 
-                                Text("MacBook Notch Notice: If you have many menu bar items, macOS automatically conceals icons that overlap the camera notch. Select 'Icon Only' (24pt) to preserve space, or ⌘-drag menu bar icons left/right to reposition.")
+                                Text("MacBook Notch & ⌘-Drag: If you hold Command (⌘) and drag the icon off the menu bar, macOS detaches it. If hidden behind the camera notch or dragged away, use the Restore button below to bring it back immediately.")
                                     .font(.system(size: 10))
                                     .foregroundColor(.white.opacity(0.60))
                                     .lineSpacing(2)
@@ -61,20 +62,28 @@ public struct SettingsView: View {
                                             .strokeBorder(Color.amberAccent.opacity(0.20), lineWidth: 0.5)
                                     )
                             )
-                            
-                            // Re-attach button
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.08))
+                        
+                        // Restore / Re-attach button (Always available)
+                        VStack(alignment: .leading, spacing: 8) {
                             Button {
                                 appState.resetMenuBarPosition()
+                                restoreNotification = "Menu bar icon verified and restored!"
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                    restoreNotification = nil
+                                }
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "arrow.counterclockwise.circle.fill")
                                         .font(.system(size: 11, weight: .bold))
-                                    Text("Re-attach / Reset Menu Bar Icon Position")
+                                    Text("Restore / Re-attach Menu Bar Icon")
                                         .font(.system(size: 11, weight: .semibold))
                                 }
                                 .foregroundColor(.amberAccent)
-                                .padding(.horizontal, 12)
-                                .frame(height: 30)
+                                .padding(.horizontal, 14)
+                                .frame(height: 32)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
                                         .fill(Color.amberAccent.opacity(0.12))
@@ -85,8 +94,24 @@ public struct SettingsView: View {
                                 )
                             }
                             .buttonStyle(.liquidTactile(scale: 0.94))
-                            .padding(.top, 2)
+                            
+                            if let notification = restoreNotification {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(Color.emeraldAccent)
+                                    Text(notification)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(Color.emeraldAccent)
+                                }
+                                .transition(.opacity)
+                            } else {
+                                Text("Shortcut: You can also right-click the MacPulse icon in your Dock or press ⌥⌘M to restore the menu bar icon anytime.")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.white.opacity(0.40))
+                            }
                         }
+                        .padding(.top, 2)
                     }
                 }
                 

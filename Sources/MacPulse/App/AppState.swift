@@ -65,6 +65,7 @@ public final class AppState: ObservableObject {
     }
     
     public var onResetMenuBar: (() -> Void)?
+    public var onVerifyMenuBar: (() -> Void)?
     
     public func resetMenuBarPosition() {
         showInMenuBar = true
@@ -124,9 +125,9 @@ public final class AppState: ObservableObject {
     
     public func updateActivationPolicy() {
         if showInDock {
-            NSApp.setActivationPolicy(.regular)
+            NSApplication.shared.setActivationPolicy(.regular)
         } else {
-            NSApp.setActivationPolicy(.accessory)
+            NSApplication.shared.setActivationPolicy(.accessory)
         }
     }
     
@@ -155,6 +156,9 @@ public final class AppState: ObservableObject {
         sessionManager.tick()
         refreshData()
         updateMenuBarText()
+        if showInMenuBar {
+            onVerifyMenuBar?()
+        }
     }
     
     public func refreshData() {

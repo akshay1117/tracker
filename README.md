@@ -152,7 +152,8 @@ export DEVELOPER_DIR="/Library/Developer/CommandLineTools"
 swift test
 ```
 
-### Test Coverage Highlights (35 Tests, 7 Suites)
+### Test Coverage Highlights (38 Tests, 8 Suites)
+- **`MenuBarRecoveryTests`**: Status bar controller idempotent recreation, KVO-driven recovery, visibility toggling, database and aggregate state preservation during restoration.
 - **`EnergyIntegratorTests`**: Trapezoidal rule integration, linear power ramps, sleep gap rejection (> 30s), negative interval rejection, implausible wattage rejection.
 - **`NetworkAccumulatorTests`**: Monotonic speed calculation, counter reset protection, interface switching, disconnected state handling.
 - **`DynamicUnitConversionTests`**: MB to GB (1,000 MB threshold), Wh to kWh (1,000 Wh threshold), KB/s to MB/s threshold, display unit decoupling.
