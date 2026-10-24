@@ -60,17 +60,17 @@ ZIP_PATH="${TMP_DIR}/MacPulse.zip"
 
 echo -e "• Fetching MacPulse release package..."
 
-# Authentication header if token is present
-AUTH_HEADER=()
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    AUTH_HEADER=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-elif [[ -n "${GH_TOKEN:-}" ]]; then
-    AUTH_HEADER=(-H "Authorization: Bearer ${GH_TOKEN}")
-fi
+TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
 
 DOWNLOAD_SUCCESS=false
-if curl "${AUTH_HEADER[@]}" -fsSL -o "${ZIP_PATH}" "${RELEASE_URL}" 2>/dev/null; then
-    DOWNLOAD_SUCCESS=true
+if [[ -n "${TOKEN}" ]]; then
+    if curl -H "Authorization: Bearer ${TOKEN}" -fsSL -o "${ZIP_PATH}" "${RELEASE_URL}" 2>/dev/null; then
+        DOWNLOAD_SUCCESS=true
+    fi
+else
+    if curl -fsSL -o "${ZIP_PATH}" "${RELEASE_URL}" 2>/dev/null; then
+        DOWNLOAD_SUCCESS=true
+    fi
 fi
 
 # Fallback: If no pre-built release asset found, try source clone & compile
@@ -83,9 +83,17 @@ if [[ "${DOWNLOAD_SUCCESS}" != "true" ]]; then
     fi
     
     CLONE_SUCCESS=false
-    if git clone --depth 1 "https://github.com/${REPO}.git" "${TMP_DIR}/tracker" 2>/dev/null || \
-       git clone --depth 1 "git@github.com:${REPO}.git" "${TMP_DIR}/tracker" 2>/dev/null; then
-        CLONE_SUCCESS=true
+    if [[ -n "${TOKEN}" ]]; then
+        if git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${REPO}.git" "${TMP_DIR}/tracker" 2>/dev/null; then
+            CLONE_SUCCESS=true
+        fi
+    fi
+
+    if [[ "${CLONE_SUCCESS}" != "true" ]]; then
+        if git clone --depth 1 "https://github.com/${REPO}.git" "${TMP_DIR}/tracker" 2>/dev/null || \
+           git clone --depth 1 "git@github.com:${REPO}.git" "${TMP_DIR}/tracker" 2>/dev/null; then
+            CLONE_SUCCESS=true
+        fi
     fi
     
     if [[ "${CLONE_SUCCESS}" == "true" ]]; then
