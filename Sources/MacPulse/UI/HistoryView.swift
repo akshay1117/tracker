@@ -7,7 +7,46 @@ public struct HistoryView: View {
     @ObservedObject var appState: AppState
     @State private var selectedSession: UsageSession?
     @State private var chartMetric: ChartMetric = .energy
+    @State private var timeRange: HistoryTimeRange = .sevenDays
+    @State private var rangeSessions: [UsageSession] = []
     @Namespace private var historyMetricNamespace
+    @Namespace private var historyTimeRangeNamespace
+    
+    public enum HistoryTimeRange: String, CaseIterable, Identifiable {
+        case sevenDays = "7 Days"
+        case monthly = "30 Days"
+        case threeMonths = "3 Months"
+        case yearly = "1 Year"
+        
+        public var id: String { rawValue }
+        
+        public var icon: String {
+            switch self {
+            case .sevenDays: return "calendar"
+            case .monthly: return "calendar.badge.clock"
+            case .threeMonths: return "chart.bar.xaxis"
+            case .yearly: return "clock.arrow.2.circlepath"
+            }
+        }
+        
+        public var numberOfDays: Int {
+            switch self {
+            case .sevenDays: return 7
+            case .monthly: return 30
+            case .threeMonths: return 90
+            case .yearly: return 365
+            }
+        }
+        
+        public var badgePrefix: String {
+            switch self {
+            case .sevenDays: return "7D"
+            case .monthly: return "30D"
+            case .threeMonths: return "3M"
+            case .yearly: return "1Y"
+            }
+        }
+    }
     
     public enum ChartMetric: String, CaseIterable, Identifiable {
         case energy = "Energy (Wh)"
@@ -37,78 +76,266 @@ public struct HistoryView: View {
         self.appState = appState
     }
     
-    // Group recent sessions by day
-    private var dailyAggregates: [DailySummary] {
+    private func loadSessions() {
         let calendar = Calendar.current
-        var dict: [Date: (energy: Double, bytes: Int64, duration: TimeInterval)] = [:]
+        let now = Date()
+        let days = timeRange.numberOfDays
+        let startDate = calendar.date(byAdding: .day, value: -days, to: now) ?? now.addingTimeInterval(-Double(days) * 86400)
         
-        // Build last 7 days buckets
-        let today = calendar.startOfDay(for: Date())
-        for i in 0..<7 {
-            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
-                dict[date] = (0.0, 0, 0.0)
+        var fetched = appState.database.fetchSessionsSince(date: startDate)
+        if let current = appState.currentSession, current.startTime >= startDate {
+            if !fetched.contains(where: { $0.id == current.id }) {
+                fetched.append(current)
             }
         }
+        self.rangeSessions = fetched.sorted { $0.startTime > $1.startTime }
+    }
+    
+    private var totalRangeEnergy: Double {
+        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
+        return list.reduce(0.0) { $0 + $1.energyWh }
+    }
+    
+    private var totalRangeBytes: Int64 {
+        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
+        return list.reduce(0) { $0 + $1.totalCombinedBytes }
+    }
+    
+    private var totalRangeDurationSeconds: TimeInterval {
+        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
+        return list.reduce(0.0) { $0 + $1.durationSeconds }
+    }
+    
+    private var displayedSessions: [UsageSession] {
+        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
+        return Array(list.prefix(100))
+    }
+    
+    private var chartBuckets: [HistoryBucketSummary] {
+        let calendar = Calendar.current
+        let now = Date()
+        let sessions = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
         
-        for s in appState.recentSessions {
-            let day = calendar.startOfDay(for: s.startTime)
-            if let existing = dict[day] {
-                dict[day] = (
-                    existing.energy + s.energyWh,
-                    existing.bytes + s.totalCombinedBytes,
-                    existing.duration + s.durationSeconds
+        switch timeRange {
+        case .sevenDays:
+            let today = calendar.startOfDay(for: now)
+            var buckets: [Date: (energy: Double, bytes: Int64, duration: TimeInterval)] = [:]
+            for i in (0..<7).reversed() {
+                if let d = calendar.date(byAdding: .day, value: -i, to: today) {
+                    buckets[d] = (0, 0, 0)
+                }
+            }
+            for s in sessions {
+                let day = calendar.startOfDay(for: s.startTime)
+                if let cur = buckets[day] {
+                    buckets[day] = (cur.energy + s.energyWh, cur.bytes + s.totalCombinedBytes, cur.duration + s.durationSeconds)
+                }
+            }
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "E"
+            return buckets.keys.sorted().compactMap { date in
+                guard let val = buckets[date] else { return nil }
+                return HistoryBucketSummary(
+                    id: date.description,
+                    date: date,
+                    label: dayFormatter.string(from: date),
+                    energyWh: val.energy,
+                    bytes: val.bytes,
+                    durationSeconds: val.duration
+                )
+            }
+            
+        case .monthly:
+            let today = calendar.startOfDay(for: now)
+            var buckets: [Date: (energy: Double, bytes: Int64, duration: TimeInterval)] = [:]
+            for i in (0..<30).reversed() {
+                if let d = calendar.date(byAdding: .day, value: -i, to: today) {
+                    buckets[d] = (0, 0, 0)
+                }
+            }
+            for s in sessions {
+                let day = calendar.startOfDay(for: s.startTime)
+                if let cur = buckets[day] {
+                    buckets[day] = (cur.energy + s.energyWh, cur.bytes + s.totalCombinedBytes, cur.duration + s.durationSeconds)
+                }
+            }
+            let monthDayFormatter = DateFormatter()
+            monthDayFormatter.dateFormat = "d"
+            return buckets.keys.sorted().compactMap { date in
+                guard let val = buckets[date] else { return nil }
+                return HistoryBucketSummary(
+                    id: date.description,
+                    date: date,
+                    label: monthDayFormatter.string(from: date),
+                    energyWh: val.energy,
+                    bytes: val.bytes,
+                    durationSeconds: val.duration
+                )
+            }
+            
+        case .threeMonths:
+            var weekBuckets: [(start: Date, end: Date, label: String, energy: Double, bytes: Int64, duration: TimeInterval)] = []
+            let weekFormatter = DateFormatter()
+            weekFormatter.dateFormat = "MMM d"
+            
+            var cursorEnd = now
+            for _ in 0..<12 {
+                let cursorStart = calendar.date(byAdding: .day, value: -7, to: cursorEnd) ?? cursorEnd.addingTimeInterval(-7 * 86400)
+                weekBuckets.append((cursorStart, cursorEnd, weekFormatter.string(from: cursorStart), 0, 0, 0))
+                cursorEnd = cursorStart
+            }
+            weekBuckets.reverse()
+            
+            for s in sessions {
+                for i in 0..<weekBuckets.count {
+                    if s.startTime >= weekBuckets[i].start && s.startTime < weekBuckets[i].end {
+                        weekBuckets[i].energy += s.energyWh
+                        weekBuckets[i].bytes += s.totalCombinedBytes
+                        weekBuckets[i].duration += s.durationSeconds
+                        break
+                    }
+                }
+            }
+            
+            return weekBuckets.map { b in
+                HistoryBucketSummary(
+                    id: b.start.description,
+                    date: b.start,
+                    label: b.label,
+                    energyWh: b.energy,
+                    bytes: b.bytes,
+                    durationSeconds: b.duration
+                )
+            }
+            
+        case .yearly:
+            var monthBuckets: [(date: Date, label: String, energy: Double, bytes: Int64, duration: TimeInterval)] = []
+            let monthFormatter = DateFormatter()
+            monthFormatter.dateFormat = "MMM"
+            
+            for i in (0..<12).reversed() {
+                if let mDate = calendar.date(byAdding: .month, value: -i, to: now) {
+                    let comps = calendar.dateComponents([.year, .month], from: mDate)
+                    if let startOfMonth = calendar.date(from: comps) {
+                        monthBuckets.append((startOfMonth, monthFormatter.string(from: startOfMonth), 0, 0, 0))
+                    }
+                }
+            }
+            
+            for s in sessions {
+                let sComps = calendar.dateComponents([.year, .month], from: s.startTime)
+                guard let sMonth = calendar.date(from: sComps) else { continue }
+                for i in 0..<monthBuckets.count {
+                    if calendar.isDate(monthBuckets[i].date, equalTo: sMonth, toGranularity: .month) {
+                        monthBuckets[i].energy += s.energyWh
+                        monthBuckets[i].bytes += s.totalCombinedBytes
+                        monthBuckets[i].duration += s.durationSeconds
+                        break
+                    }
+                }
+            }
+            
+            return monthBuckets.map { b in
+                HistoryBucketSummary(
+                    id: b.date.description,
+                    date: b.date,
+                    label: b.label,
+                    energyWh: b.energy,
+                    bytes: b.bytes,
+                    durationSeconds: b.duration
                 )
             }
         }
-        
-        return dict.keys.sorted().compactMap { date in
-            guard let val = dict[date] else { return nil }
-            return DailySummary(
-                date: date,
-                energyWh: val.energy,
-                bytes: val.bytes,
-                durationSeconds: val.duration
-            )
-        }
-    }
-    
-    private var total7DayEnergy: Double {
-        dailyAggregates.reduce(0.0) { $0 + $1.energyWh }
-    }
-    
-    private var total7DayBytes: Int64 {
-        dailyAggregates.reduce(0) { $0 + $1.bytes }
-    }
-    
-    private var total7DayDurationSeconds: TimeInterval {
-        dailyAggregates.reduce(0.0) { $0 + $1.durationSeconds }
     }
     
     public var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 16) {
-                // MARK: - 7-Day Metric Totals (3-Column Grid)
+                // MARK: - Time Range Scope Selector (7 Days, 30 Days, 3 Months, 1 Year)
+                HStack(spacing: 8) {
+                    ForEach(HistoryTimeRange.allCases) { range in
+                        Button {
+                            withAnimation(DesignSystem.liquidSpring) {
+                                timeRange = range
+                                loadSessions()
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: range.icon)
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text(range.rawValue)
+                                    .font(.system(size: 11, weight: timeRange == range ? .bold : .medium))
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(height: 28)
+                            .foregroundColor(timeRange == range ? .white : .white.opacity(0.60))
+                            .background(
+                                ZStack {
+                                    if timeRange == range {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [Color.cyanAccent.opacity(0.28), Color.cyanAccent.opacity(0.12)],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6)
+                                                    .strokeBorder(
+                                                        LinearGradient(
+                                                            colors: [Color.cyanAccent.opacity(0.75), Color.cyanAccent.opacity(0.25)],
+                                                            startPoint: .topLeading,
+                                                            endPoint: .bottomTrailing
+                                                        ),
+                                                        lineWidth: 1
+                                                    )
+                                            )
+                                            .overlay(
+                                                DesignSystem.liquidGlassHighlight
+                                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                            )
+                                            .shadow(color: Color.cyanAccent.opacity(0.35), radius: 6, x: 0, y: 2)
+                                            .matchedGeometryEffect(id: "liquidHistoryRangePill", in: historyTimeRangeNamespace)
+                                    } else {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color.white.opacity(0.04))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6)
+                                                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                                            )
+                                    }
+                                }
+                            )
+                        }
+                        .buttonStyle(.liquidTactile(scale: 0.94))
+                    }
+                    
+                    Spacer()
+                }
+                
+                // MARK: - Selected Time Range Metric Totals (3-Column Grid)
                 HStack(spacing: 12) {
                     MetricSummaryBadge(
-                        title: "7D TOTAL ENERGY",
-                        value: UnitFormatter.formatEnergy(wattHours: total7DayEnergy),
-                        subtitle: "Last 7 Days Rolling",
+                        title: "\(timeRange.badgePrefix) TOTAL ENERGY",
+                        value: UnitFormatter.formatEnergy(wattHours: totalRangeEnergy),
+                        subtitle: "\(timeRange.rawValue) Rolling",
                         icon: "bolt.fill",
                         color: .amberAccent
                     )
                     
                     MetricSummaryBadge(
-                        title: "7D WI-FI USAGE",
-                        value: UnitFormatter.formatDataSize(bytes: total7DayBytes),
-                        subtitle: "Interface Traffic",
+                        title: "\(timeRange.badgePrefix) WI-FI USAGE",
+                        value: UnitFormatter.formatDataSize(bytes: totalRangeBytes),
+                        subtitle: "\(timeRange.rawValue) Traffic",
                         icon: "wifi",
                         color: .cyanAccent
                     )
                     
                     MetricSummaryBadge(
-                        title: "7D SCREEN TIME",
-                        value: UnitFormatter.formatDuration(seconds: total7DayDurationSeconds),
-                        subtitle: "Awake Duration",
+                        title: "\(timeRange.badgePrefix) SCREEN TIME",
+                        value: UnitFormatter.formatDuration(seconds: totalRangeDurationSeconds),
+                        subtitle: "\(timeRange.rawValue) Awake",
                         icon: "display",
                         color: .blueAccent
                     )
@@ -116,7 +343,7 @@ public struct HistoryView: View {
                 
                 // MARK: - Swift Charts Section with Direct Filter Pills
                 MetricCard(
-                    title: "Activity (Last 7 Days)",
+                    title: "Activity (\(timeRange.rawValue))",
                     subtitle: chartMetric.rawValue,
                     icon: "chart.xyaxis.line",
                     accentColor: chartMetric.accentColor
@@ -159,7 +386,7 @@ public struct HistoryView: View {
                                                                     endPoint: .bottomTrailing
                                                                 ),
                                                                 lineWidth: 1
-                                                            )
+                                                             )
                                                     )
                                                     .overlay(
                                                         DesignSystem.liquidGlassHighlight
@@ -188,9 +415,9 @@ public struct HistoryView: View {
                         
                         // Chart Visualization
                         if #available(macOS 13.0, *) {
-                            Chart(dailyAggregates) { item in
+                            Chart(chartBuckets) { item in
                                 BarMark(
-                                    x: .value("Day", item.dayLabel),
+                                    x: .value("Period", item.dayLabel),
                                     y: .value("Value", item.value(for: chartMetric))
                                 )
                                 .foregroundStyle(item.barColor(for: chartMetric))
@@ -218,17 +445,17 @@ public struct HistoryView: View {
                 // MARK: - Session History List (Columnar Table)
                 MetricCard(
                     title: "Session History",
-                    subtitle: "\(appState.recentSessions.count) Finalized Sessions",
+                    subtitle: "\(displayedSessions.count) Sessions (\(timeRange.rawValue))",
                     icon: "clock.arrow.circlepath",
                     accentColor: .emeraldAccent
                 ) {
                     VStack(spacing: 8) {
-                        if appState.recentSessions.isEmpty {
+                        if displayedSessions.isEmpty {
                             VStack(spacing: 8) {
                                 Image(systemName: "clock.arrow.circlepath")
                                     .font(.system(size: 28))
                                     .foregroundColor(.white.opacity(0.3))
-                                Text("No finalized sessions yet.")
+                                Text("No finalized sessions in this period.")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(.white.opacity(0.6))
                                 Text("Sessions automatically record and finalize when the display sleeps or the lid closes.")
@@ -273,7 +500,7 @@ public struct HistoryView: View {
                             
                             // Rows
                             LazyVStack(spacing: 6) {
-                                ForEach(appState.recentSessions) { session in
+                                ForEach(displayedSessions) { session in
                                     Button {
                                         selectedSession = session
                                     } label: {
@@ -288,6 +515,15 @@ public struct HistoryView: View {
             }
             .padding(.horizontal, 22)
             .padding(.bottom, 24)
+        }
+        .onAppear {
+            loadSessions()
+        }
+        .onChange(of: timeRange) { _, _ in
+            loadSessions()
+        }
+        .onReceive(appState.$recentSessions) { _ in
+            loadSessions()
         }
         .sheet(item: $selectedSession) { session in
             SessionDetailSheet(session: session, appState: appState)
@@ -338,14 +574,14 @@ private struct MetricSummaryBadge: View {
     }
 }
 
-// MARK: - Daily Summary Model
-struct DailySummary: Identifiable {
+// MARK: - Time Range Summary Bucket Model
+struct HistoryBucketSummary: Identifiable {
+    let id: String
     let date: Date
+    let label: String
     let energyWh: Double
     let bytes: Int64
     let durationSeconds: TimeInterval
-    
-    var id: Date { date }
     
     var dataGB: Double {
         Double(bytes) / Double(UnitFormatter.Thresholds.bytesPerGB)
@@ -359,11 +595,7 @@ struct DailySummary: Identifiable {
         UnitFormatter.formatDuration(seconds: durationSeconds)
     }
     
-    var dayLabel: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E"
-        return formatter.string(from: date)
-    }
+    var dayLabel: String { label }
     
     func value(for metric: HistoryView.ChartMetric) -> Double {
         switch metric {
@@ -392,6 +624,7 @@ struct DailySummary: Identifiable {
         }
     }
 }
+typealias DailySummary = HistoryBucketSummary
 
 // MARK: - Session Row View
 struct SessionRowView: View {
