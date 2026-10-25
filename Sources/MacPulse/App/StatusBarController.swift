@@ -28,26 +28,20 @@ public final class StatusBarController: NSObject, NSPopoverDelegate {
             return
         }
         
-        // Clear any previous autosaved hidden state that macOS may have persisted in preferences
-        UserDefaults.standard.removeObject(forKey: "NSStatusItem Visible com.macpulse.status.active")
-        UserDefaults.standard.removeObject(forKey: "NSStatusItem Preferred Position com.macpulse.status.active")
-        
-        // 1. Create a variable length status item on system status bar
+        // 1. Create a status item on system status bar
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = "com.macpulse.status.active"
-        // Explicitly set empty behavior: do NOT allow removal so Command-drag does not intentionally delete it
         item.behavior = []
         item.isVisible = appState.showInMenuBar
         
-        // 2. Observe isVisible property via KVO to immediately detect if macOS hides or detaches the item
+        // 2. Observe isVisible property via KVO to catch external changes
         visibilityObservation?.invalidate()
         visibilityObservation = item.observe(\.isVisible, options: [.new, .old]) { [weak self] observedItem, change in
             let isVisible = change.newValue ?? observedItem.isVisible
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 if !isVisible && self.appState.showInMenuBar && !self.isProgrammaticHiding {
-                    print("MacPulse: Status item was unexpectedly hidden by system/drag. Automatically restoring...")
-                    self.scheduleRestoration()
+                    self.statusItem?.isVisible = true
+                    self.updateStatusItemDisplay()
                 }
             }
         }
@@ -60,11 +54,11 @@ public final class StatusBarController: NSObject, NSPopoverDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.toolTip = "MacPulse — Power & Wi-Fi Usage Tracker"
             updateStatusItemDisplay()
-            print("MacPulse: Status item created successfully. Button frame: \(button.frame)")
+            print("MacPulse: Status item initialized successfully.")
         }
     }
     
-    /// Fully removes and recreates the status item. Completely idempotent.
+    /// Fully removes and recreates the status item. Idempotent; only called on explicit user restore.
     public func recreateStatusItem() {
         guard !isRestoring else { return }
         isRestoring = true
@@ -81,39 +75,19 @@ public final class StatusBarController: NSObject, NSPopoverDelegate {
             self.statusItem = nil
         }
         
-        // Clear any stored hidden preferences
-        UserDefaults.standard.removeObject(forKey: "NSStatusItem Visible com.macpulse.status.active")
-        UserDefaults.standard.removeObject(forKey: "NSStatusItem Preferred Position com.macpulse.status.active")
-        
         setupStatusItem()
     }
     
-    /// Debounced restoration helper to prevent rapid recreation cycles.
-    private func scheduleRestoration() {
-        restorationWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self = self, self.appState.showInMenuBar else { return }
-            self.recreateStatusItem()
-        }
-        restorationWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
-    }
-    
-    /// Verifies the status item is alive, attached to a window, and visible.
-    /// If it was detached or removed, it re-establishes it immediately.
+    /// Ensures the status item exists and is marked visible. Never tears down a healthy item.
     public func ensureStatusItemVisible() {
         guard appState.showInMenuBar else { return }
         
-        let isMissing = statusItem == nil
-        let isDisconnected = statusItem?.button?.window == nil
-        let isHidden = !(statusItem?.isVisible ?? false)
-        
-        if isMissing || isDisconnected || isHidden {
-            print("MacPulse: ensureStatusItemVisible detected missing/detached item (missing: \(isMissing), disconnected: \(isDisconnected), hidden: \(isHidden)). Restoring...")
-            recreateStatusItem()
-        } else {
-            updateStatusItemDisplay()
+        if statusItem == nil {
+            setupStatusItem()
+        } else if let item = statusItem, !item.isVisible {
+            item.isVisible = true
         }
+        updateStatusItemDisplay()
     }
     
     private func setupPopover() {
@@ -176,7 +150,7 @@ public final class StatusBarController: NSObject, NSPopoverDelegate {
         
         let title = appState.statusItemTitle
         if title.isEmpty || appState.menuBarMode == .iconOnly {
-            item.length = NSStatusItem.squareLength
+            item.length = 26.0
             button.imagePosition = .imageOnly
             button.title = ""
         } else {

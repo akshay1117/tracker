@@ -6,10 +6,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState!
     var statusBarController: StatusBarController!
     var mainWindowController: MainWindowController!
+    private var appNapActivity: (any NSObjectProtocol)?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Prevent AppKit automatic termination for background monitoring
         ProcessInfo.processInfo.disableAutomaticTermination("MacPulse menu bar tracking")
+        
+        // Prevent macOS App Nap from throttling or freezing background sampling
+        self.appNapActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .latencyCritical],
+            reason: "MacPulse continuous background tracking"
+        )
         
         let state = AppState()
         self.appState = state
@@ -133,6 +140,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        if let activity = appNapActivity {
+            ProcessInfo.processInfo.endActivity(activity)
+            appNapActivity = nil
+        }
         appState?.sessionManager.handleWillTerminate()
         print("MacPulse: Terminated gracefully.")
     }

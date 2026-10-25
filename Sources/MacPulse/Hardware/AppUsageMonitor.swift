@@ -20,6 +20,7 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
     private var previousNetworkCounters: [pid_t: (bytesIn: Int64, bytesOut: Int64)] = [:]
     
     // Cache for PID -> (Bundle ID, App Name)
+    private let cacheLock = NSLock()
     private var pidAppCache: [pid_t: (bundleId: String, name: String, timestamp: Date)] = [:]
     private let cacheTtlSeconds: TimeInterval = 60.0
     
@@ -48,11 +49,14 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
     
     public func resetCurrentSession() {
         lock.lock()
-        defer { lock.unlock() }
         sessionRecords.removeAll()
         previousCpuSeconds.removeAll()
         previousNetworkCounters.removeAll()
+        lock.unlock()
+        
+        cacheLock.lock()
         pidAppCache.removeAll()
+        cacheLock.unlock()
     }
     
     // MARK: - Sampling & Updating
@@ -217,6 +221,7 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
     
     // MARK: - Asynchronous Network Sampling (nettop)
     
+    // Assumes lock is held by caller (updateSample)
     private func triggerAsyncNettop(now: Date) {
         guard !isNettopRunning && now.timeIntervalSince(lastNettopRunTime) >= nettopMinIntervalSeconds else {
             return
@@ -281,36 +286,41 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
             pidTraffic[pid] = (procName, inBytes, outBytes)
         }
         
+        // Resolve applications outside the main lock to prevent MainActor UI hitching
+        var resolvedTraffic: [(bundleId: String, appName: String, pid: pid_t, bytesIn: Int64, bytesOut: Int64)] = []
+        for (pid, traffic) in pidTraffic {
+            let (bundleId, appName) = resolveApp(for: pid, fallbackName: traffic.name)
+            resolvedTraffic.append((bundleId, appName, pid, traffic.bytesIn, traffic.bytesOut))
+        }
+        
         lock.lock()
         defer { lock.unlock() }
         
         let now = Date()
         
-        for (pid, traffic) in pidTraffic {
-            let (bundleId, appName) = resolveApp(for: pid, fallbackName: traffic.name)
-            
+        for item in resolvedTraffic {
             var deltaIn: Int64 = 0
             var deltaOut: Int64 = 0
             
-            if let prev = previousNetworkCounters[pid] {
-                if traffic.bytesIn >= prev.bytesIn {
-                    deltaIn = traffic.bytesIn - prev.bytesIn
+            if let prev = previousNetworkCounters[item.pid] {
+                if item.bytesIn >= prev.bytesIn {
+                    deltaIn = item.bytesIn - prev.bytesIn
                 }
-                if traffic.bytesOut >= prev.bytesOut {
-                    deltaOut = traffic.bytesOut - prev.bytesOut
+                if item.bytesOut >= prev.bytesOut {
+                    deltaOut = item.bytesOut - prev.bytesOut
                 }
             }
-            previousNetworkCounters[pid] = (traffic.bytesIn, traffic.bytesOut)
+            previousNetworkCounters[item.pid] = (item.bytesIn, item.bytesOut)
             
             if deltaIn > 0 || deltaOut > 0 {
-                var record = sessionRecords[bundleId] ?? AppUsageRecord(
-                    bundleIdentifier: bundleId,
-                    appName: appName
+                var record = sessionRecords[item.bundleId] ?? AppUsageRecord(
+                    bundleIdentifier: item.bundleId,
+                    appName: item.appName
                 )
                 record.bytesDownloaded += deltaIn
                 record.bytesUploaded += deltaOut
                 record.lastUpdated = now
-                sessionRecords[bundleId] = record
+                sessionRecords[item.bundleId] = record
             }
         }
     }
@@ -319,15 +329,20 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
     
     private func resolveApp(for pid: pid_t, fallbackName: String) -> (bundleId: String, name: String) {
         let now = Date()
+        cacheLock.lock()
         if let cached = pidAppCache[pid], now.timeIntervalSince(cached.timestamp) < cacheTtlSeconds {
+            cacheLock.unlock()
             return (cached.bundleId, cached.name)
         }
+        cacheLock.unlock()
         
         // Check if PID is directly an NSRunningApplication
         if let directApp = NSRunningApplication(processIdentifier: pid),
            let bId = directApp.bundleIdentifier {
             let name = directApp.localizedName ?? fallbackName
+            cacheLock.lock()
             pidAppCache[pid] = (bId, name, now)
+            cacheLock.unlock()
             return (bId, name)
         }
         
@@ -347,7 +362,9 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
             if let parentApp = NSRunningApplication(processIdentifier: ppid),
                let parentBundleId = parentApp.bundleIdentifier {
                 let parentName = parentApp.localizedName ?? parentBundleId
+                cacheLock.lock()
                 pidAppCache[pid] = (parentBundleId, parentName, now)
+                cacheLock.unlock()
                 return (parentBundleId, parentName)
             }
             
@@ -357,12 +374,16 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
         
         // Standalone daemon or command line tool
         let daemonId = "daemon.\(fallbackName.lowercased())"
+        cacheLock.lock()
         pidAppCache[pid] = (daemonId, fallbackName, now)
+        cacheLock.unlock()
         return (daemonId, fallbackName)
     }
     
     private func refreshRunningApps() {
         let now = Date()
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
         for app in NSWorkspace.shared.runningApplications {
             if let bundleId = app.bundleIdentifier {
                 let name = app.localizedName ?? bundleId

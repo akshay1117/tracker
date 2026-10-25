@@ -152,23 +152,38 @@ public final class AppState: ObservableObject {
         }
     }
     
+    private var tickCount: Int = 0
+
     public func performTick() {
         sessionManager.tick()
-        refreshData()
-        updateMenuBarText()
-        if showInMenuBar {
-            onVerifyMenuBar?()
+        refreshLiveMetrics()
+        tickCount += 1
+        if tickCount >= 20 {
+            tickCount = 0
+            refreshHistoricalData()
         }
+        updateMenuBarText()
     }
     
-    public func refreshData() {
+    /// Ultra-fast 1-second in-memory refresh for live telemetry (0ms SQLite overhead)
+    public func refreshLiveMetrics() {
         self.currentSession = sessionManager.currentSession
         self.lastPower = sessionManager.lastPowerSnapshot
         self.lastNetwork = sessionManager.lastNetworkSnapshot
+        self.currentAppUsage = sessionManager.currentAppRecords
+    }
+    
+    /// Refreshes historical stats from SQLite database (runs periodically or on explicit user action)
+    public func refreshHistoricalData() {
         self.aggregateStats = database.fetchAggregateStats()
         self.recentSessions = database.fetchRecentSessions(limit: 50)
-        self.currentAppUsage = sessionManager.currentAppRecords
         self.lifetimeAppUsage = database.fetchLifetimeAppUsage()
+    }
+    
+    /// Full refresh of both live and historical records
+    public func refreshData() {
+        refreshLiveMetrics()
+        refreshHistoricalData()
     }
     
     // MARK: - Menu Bar Display Formatter

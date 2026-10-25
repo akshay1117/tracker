@@ -57,6 +57,8 @@ cat << 'EOF' > "${APP_DIR}/Info.plist"
     <string>14.0</string>
     <key>LSUIElement</key>
     <false/>
+    <key>NSSupportsAppNap</key>
+    <false/>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
