@@ -185,4 +185,50 @@ struct DatabaseTests {
         #expect(wipedStats.lifetimeEnergyWh == 0.0)
         #expect(wipedStats.lifetimeBytesDownloaded == 0)
     }
+    
+    @Test("Active session dynamically combines into lifetime aggregate stats in real-time")
+    func testLiveCombinedAggregateStats() {
+        let historical = AggregateStats(
+            lifetimeEnergyWh: 10.0,
+            lifetimeBatteryEnergyWh: 2.0,
+            lifetimeBytesDownloaded: 1_000_000,
+            lifetimeBytesUploaded: 500_000,
+            lifetimeAwakeSeconds: 1200.0,
+            totalSessionsCount: 3
+        )
+        
+        // Active in-progress session (endTime == nil)
+        var activeSession = UsageSession(
+            bootSessionUUID: "TEST-UUID",
+            startTime: Date(),
+            endTime: nil,
+            durationSeconds: 300.0,
+            energyWh: 1.5,
+            batteryEnergyWh: 0.5,
+            bytesDownloaded: 200_000,
+            bytesUploaded: 50_000,
+            endReason: .unknown
+        )
+        
+        let combined = historical.combined(with: activeSession)
+        #expect(combined.lifetimeEnergyWh == 11.5)
+        #expect(combined.lifetimeBatteryEnergyWh == 2.5)
+        #expect(combined.lifetimeBytesDownloaded == 1_200_000)
+        #expect(combined.lifetimeBytesUploaded == 550_000)
+        #expect(combined.lifetimeAwakeSeconds == 1500.0)
+        #expect(combined.totalSessionsCount == 4)
+        
+        // As active session updates:
+        activeSession.energyWh = 2.0
+        activeSession.bytesDownloaded = 400_000
+        let updated = historical.combined(with: activeSession)
+        #expect(updated.lifetimeEnergyWh == 12.0)
+        #expect(updated.lifetimeBytesDownloaded == 1_400_000)
+        
+        // Once finalized, combined ignores already-ended session to prevent double counting
+        activeSession.endTime = Date()
+        let finalizedCombined = historical.combined(with: activeSession)
+        #expect(finalizedCombined.lifetimeEnergyWh == 10.0)
+        #expect(finalizedCombined.totalSessionsCount == 3)
+    }
 }

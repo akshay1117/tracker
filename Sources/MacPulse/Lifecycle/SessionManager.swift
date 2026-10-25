@@ -323,18 +323,14 @@ public final class SessionManager: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         
-        if currentState == .active, var session = currentSession {
-            // Graceful app termination: finalize session as AppQuit
-            let now = clock.wallClockDate()
-            session.endTime = now
-            session.endReason = .appQuit
-            session.detectionConfidence = .workspaceNotification
-            session.energyWh = energyIntegrator.systemEnergyWh
-            session.batteryEnergyWh = energyIntegrator.batteryEnergyWh
-            session.bytesDownloaded = networkAccumulator.bytesDownloaded
-            session.bytesUploaded = networkAccumulator.bytesUploaded
-            db.finalizeSession(session)
-            currentSession = nil
+        if currentState == .active {
+            finalizeActiveSessionInternal(reason: .appQuit, confidence: .workspaceNotification)
         }
+    }
+    
+    public func resetCurrentSession() {
+        lock.lock()
+        defer { lock.unlock() }
+        startNewSessionInternal(trigger: .workspaceNotification)
     }
 }

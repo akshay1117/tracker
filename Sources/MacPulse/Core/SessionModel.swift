@@ -158,4 +158,17 @@ public struct AggregateStats: Codable, Sendable, Equatable {
     public var formattedLifetimeAwake: String {
         UnitFormatter.formatDuration(seconds: lifetimeAwakeSeconds)
     }
+    
+    /// Combines completed historical stats with an in-progress active session.
+    public func combined(with session: UsageSession?) -> AggregateStats {
+        guard let session = session, session.endTime == nil else { return self }
+        return AggregateStats(
+            lifetimeEnergyWh: self.lifetimeEnergyWh + session.energyWh,
+            lifetimeBatteryEnergyWh: self.lifetimeBatteryEnergyWh + session.batteryEnergyWh,
+            lifetimeBytesDownloaded: self.lifetimeBytesDownloaded + session.bytesDownloaded,
+            lifetimeBytesUploaded: self.lifetimeBytesUploaded + session.bytesUploaded,
+            lifetimeAwakeSeconds: self.lifetimeAwakeSeconds + session.durationSeconds,
+            totalSessionsCount: self.totalSessionsCount + 1
+        )
+    }
 }

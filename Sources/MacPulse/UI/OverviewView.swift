@@ -319,7 +319,7 @@ public struct OverviewView: View {
                 // MARK: - Lifetime Statistics (Balanced 3 Columns)
                 MetricCard(
                     title: "Lifetime Statistics",
-                    subtitle: "\(appState.aggregateStats.totalSessionsCount) Total Sessions",
+                    subtitle: "\(appState.aggregateStats.totalSessionsCount) Total Session\(appState.aggregateStats.totalSessionsCount == 1 ? "" : "s")",
                     icon: "chart.bar.xaxis",
                     accentColor: .emeraldAccent
                 ) {

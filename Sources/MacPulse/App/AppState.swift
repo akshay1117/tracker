@@ -37,6 +37,10 @@ public final class AppState: ObservableObject {
     @Published public var currentAppUsage: [AppUsageRecord] = []
     @Published public var lifetimeAppUsage: [AppUsageRecord] = []
     
+    // Internal historical baselines from SQLite
+    private var historicalAggregateStats: AggregateStats = AggregateStats()
+    private var historicalLifetimeAppUsage: [AppUsageRecord] = []
+    
     // Preferences
     @Published public var showInMenuBar: Bool {
         didSet {
@@ -171,19 +175,57 @@ public final class AppState: ObservableObject {
         self.lastPower = sessionManager.lastPowerSnapshot
         self.lastNetwork = sessionManager.lastNetworkSnapshot
         self.currentAppUsage = sessionManager.currentAppRecords
+        updateAggregateAndLifetimeStats()
     }
     
     /// Refreshes historical stats from SQLite database (runs periodically or on explicit user action)
     public func refreshHistoricalData() {
-        self.aggregateStats = database.fetchAggregateStats()
+        self.historicalAggregateStats = database.fetchAggregateStats()
         self.recentSessions = database.fetchRecentSessions(limit: 50)
-        self.lifetimeAppUsage = database.fetchLifetimeAppUsage()
+        self.historicalLifetimeAppUsage = database.fetchLifetimeAppUsage(excludingSessionId: currentSession?.id)
+        updateAggregateAndLifetimeStats()
     }
     
     /// Full refresh of both live and historical records
     public func refreshData() {
-        refreshLiveMetrics()
+        self.currentSession = sessionManager.currentSession
+        self.lastPower = sessionManager.lastPowerSnapshot
+        self.lastNetwork = sessionManager.lastNetworkSnapshot
+        self.currentAppUsage = sessionManager.currentAppRecords
         refreshHistoricalData()
+    }
+    
+    /// Combines completed historical stats with active session deltas in real-time
+    private func updateAggregateAndLifetimeStats() {
+        self.aggregateStats = historicalAggregateStats.combined(with: currentSession)
+        self.lifetimeAppUsage = computeCombinedLifetimeAppUsage()
+    }
+    
+    private func computeCombinedLifetimeAppUsage() -> [AppUsageRecord] {
+        var map: [String: AppUsageRecord] = [:]
+        
+        for r in historicalLifetimeAppUsage {
+            map[r.bundleIdentifier] = r
+        }
+        
+        for cur in currentAppUsage {
+            if var existing = map[cur.bundleIdentifier] {
+                existing.screenOnTimeSeconds += cur.screenOnTimeSeconds
+                existing.cpuTimeSeconds += cur.cpuTimeSeconds
+                existing.energyWh += cur.energyWh
+                existing.energyImpact = max(existing.energyImpact, cur.energyImpact)
+                existing.bytesDownloaded += cur.bytesDownloaded
+                existing.bytesUploaded += cur.bytesUploaded
+                existing.isRunning = cur.isRunning
+                existing.isFrontmost = cur.isFrontmost
+                existing.lastUpdated = max(existing.lastUpdated, cur.lastUpdated)
+                map[cur.bundleIdentifier] = existing
+            } else {
+                map[cur.bundleIdentifier] = cur
+            }
+        }
+        
+        return Array(map.values).sorted { $0.screenOnTimeSeconds > $1.screenOnTimeSeconds }
     }
     
     // MARK: - Menu Bar Display Formatter
@@ -315,7 +357,9 @@ public final class AppState: ObservableObject {
     
     public func resetAllHistory() {
         database.resetAllHistory()
-        sessionManager.appUsageMonitor.resetCurrentSession()
+        sessionManager.resetCurrentSession()
+        self.historicalAggregateStats = AggregateStats()
+        self.historicalLifetimeAppUsage = []
         refreshData()
     }
 }

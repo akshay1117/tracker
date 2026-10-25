@@ -45,6 +45,7 @@ public final class DatabaseManager: @unchecked Sendable {
             if currentVersion < Self.currentSchemaVersion {
                 migrate(from: currentVersion, to: Self.currentSchemaVersion)
             }
+            syncAggregateStatsWithCompletedSessionsInternal()
         }
     }
     
@@ -412,6 +413,83 @@ public final class DatabaseManager: @unchecked Sendable {
             return stats
         }
     }
+    /// Ensures aggregate_stats table accurately reflects the sum of all completed sessions
+    /// in case of un-reconciled crashes or legacy migrations.
+    public func syncAggregateStatsWithCompletedSessions() {
+        dbQueue.sync {
+            syncAggregateStatsWithCompletedSessionsInternal()
+        }
+    }
+    
+    private func syncAggregateStatsWithCompletedSessionsInternal() {
+        let countSql = "SELECT COUNT(*) FROM usage_sessions WHERE end_time IS NOT NULL;"
+        var countStmt: OpaquePointer?
+        var completedCount = 0
+        if sqlite3_prepare_v2(db, countSql, -1, &countStmt, nil) == SQLITE_OK {
+            if sqlite3_step(countStmt) == SQLITE_ROW {
+                completedCount = Int(sqlite3_column_int(countStmt, 0))
+            }
+        }
+        sqlite3_finalize(countStmt)
+        
+        guard completedCount > 0 else { return }
+        
+        let checkAggSql = "SELECT total_sessions_count FROM aggregate_stats WHERE id = 1;"
+        var checkStmt: OpaquePointer?
+        var aggCount = 0
+        if sqlite3_prepare_v2(db, checkAggSql, -1, &checkStmt, nil) == SQLITE_OK {
+            if sqlite3_step(checkStmt) == SQLITE_ROW {
+                aggCount = Int(sqlite3_column_int(checkStmt, 0))
+            }
+        }
+        sqlite3_finalize(checkStmt)
+        
+        if aggCount == 0 && completedCount > 0 {
+            let sumSql = """
+            SELECT 
+                COALESCE(SUM(energy_wh), 0.0),
+                COALESCE(SUM(battery_energy_wh), 0.0),
+                COALESCE(SUM(bytes_down), 0),
+                COALESCE(SUM(bytes_up), 0),
+                COALESCE(SUM(duration_seconds), 0.0)
+            FROM usage_sessions
+            WHERE end_time IS NOT NULL;
+            """
+            var sumStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, sumSql, -1, &sumStmt, nil) == SQLITE_OK {
+                if sqlite3_step(sumStmt) == SQLITE_ROW {
+                    let energy = sqlite3_column_double(sumStmt, 0)
+                    let battEnergy = sqlite3_column_double(sumStmt, 1)
+                    let bytesDown = sqlite3_column_int64(sumStmt, 2)
+                    let bytesUp = sqlite3_column_int64(sumStmt, 3)
+                    let duration = sqlite3_column_double(sumStmt, 4)
+                    
+                    let updateSql = """
+                    UPDATE aggregate_stats SET
+                        lifetime_energy_wh = ?,
+                        lifetime_battery_wh = ?,
+                        lifetime_bytes_down = ?,
+                        lifetime_bytes_up = ?,
+                        lifetime_awake_seconds = ?,
+                        total_sessions_count = ?
+                    WHERE id = 1;
+                    """
+                    var uStmt: OpaquePointer?
+                    if sqlite3_prepare_v2(db, updateSql, -1, &uStmt, nil) == SQLITE_OK {
+                        sqlite3_bind_double(uStmt, 1, energy)
+                        sqlite3_bind_double(uStmt, 2, battEnergy)
+                        sqlite3_bind_int64(uStmt, 3, bytesDown)
+                        sqlite3_bind_int64(uStmt, 4, bytesUp)
+                        sqlite3_bind_double(uStmt, 5, duration)
+                        sqlite3_bind_int(uStmt, 6, Int32(completedCount))
+                        sqlite3_step(uStmt)
+                    }
+                    sqlite3_finalize(uStmt)
+                }
+            }
+            sqlite3_finalize(sumStmt)
+        }
+    }
     
     public func fetchRecentSessions(limit: Int = 50, offset: Int = 0) -> [UsageSession] {
         dbQueue.sync {
@@ -574,9 +652,10 @@ public final class DatabaseManager: @unchecked Sendable {
         }
     }
     
-    public func fetchLifetimeAppUsage() -> [AppUsageRecord] {
+    public func fetchLifetimeAppUsage(excludingSessionId: UUID? = nil) -> [AppUsageRecord] {
         dbQueue.sync {
             var records: [AppUsageRecord] = []
+            let whereClause = excludingSessionId != nil ? "WHERE session_id != ?" : ""
             let sql = """
             SELECT bundle_id, app_name,
                    SUM(screen_on_seconds) as total_screen_on,
@@ -587,11 +666,15 @@ public final class DatabaseManager: @unchecked Sendable {
                    SUM(bytes_up) as total_up,
                    MAX(last_updated) as latest_update
             FROM app_usage_records
+            \(whereClause)
             GROUP BY bundle_id
             ORDER BY total_screen_on DESC;
             """
             var stmt: OpaquePointer?
             if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+                if let exId = excludingSessionId {
+                    sqlite3_bind_text(stmt, 1, (exId.uuidString as NSString).utf8String, -1, nil)
+                }
                 while sqlite3_step(stmt) == SQLITE_ROW {
                     let bId = sqlite3_column_text(stmt, 0).map { String(cString: $0) } ?? ""
                     let name = sqlite3_column_text(stmt, 1).map { String(cString: $0) } ?? bId
