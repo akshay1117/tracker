@@ -46,6 +46,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
         if let win = window, win.isVisible {
             win.orderOut(nil)
             appState.isWindowOpen = false
+            window?.contentViewController = nil
+            window = nil
         } else {
             showWindow()
         }
@@ -56,5 +58,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
     public func windowWillClose(_ notification: Notification) {
         // App stays running in background when window is closed
         appState.isWindowOpen = false
+        window?.contentViewController = nil
+        window = nil
     }
 }

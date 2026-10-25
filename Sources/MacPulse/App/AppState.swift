@@ -81,11 +81,17 @@ public final class AppState: ObservableObject {
     @Published public var isWindowOpen: Bool = false {
         didSet {
             sessionManager.appUsageMonitor.isUIVisible = isUIVisible
+            if isWindowOpen {
+                refreshData()
+            }
         }
     }
     @Published public var isPopoverOpen: Bool = false {
         didSet {
             sessionManager.appUsageMonitor.isUIVisible = isUIVisible
+            if isPopoverOpen {
+                refreshData()
+            }
             adjustTimerFrequency()
         }
     }
@@ -173,10 +179,12 @@ public final class AppState: ObservableObject {
     public func performTick() {
         sessionManager.tick()
         refreshLiveMetrics()
-        tickCount += 1
-        if tickCount >= 20 {
-            tickCount = 0
-            refreshHistoricalData()
+        if isUIVisible {
+            tickCount += 1
+            if tickCount >= 20 {
+                tickCount = 0
+                refreshHistoricalData()
+            }
         }
         updateMenuBarText()
     }
@@ -186,8 +194,12 @@ public final class AppState: ObservableObject {
         self.currentSession = sessionManager.currentSession
         self.lastPower = sessionManager.lastPowerSnapshot
         self.lastNetwork = sessionManager.lastNetworkSnapshot
-        self.currentAppUsage = sessionManager.currentAppRecords
-        updateAggregateAndLifetimeStats()
+        if isUIVisible {
+            self.currentAppUsage = sessionManager.currentAppRecords
+            updateAggregateAndLifetimeStats()
+        } else {
+            self.aggregateStats = historicalAggregateStats.combined(with: currentSession)
+        }
     }
     
     /// Refreshes historical stats from SQLite database (runs periodically or on explicit user action)

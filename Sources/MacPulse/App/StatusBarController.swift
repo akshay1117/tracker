@@ -96,7 +96,8 @@ public final class StatusBarController: NSObject, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: PopoverView(appState: appState))
+        // Note: contentViewController is loaded lazily on demand when shown,
+        // and released immediately when closed to keep background RAM below 30 MB.
     }
     
     private func observeAppState() {
@@ -176,8 +177,11 @@ public final class StatusBarController: NSObject, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(sender)
             appState.isPopoverOpen = false
+            popover.contentViewController = nil
         } else {
-            // Activate the app to ensure popover receives key focus
+            if popover.contentViewController == nil {
+                popover.contentViewController = NSHostingController(rootView: PopoverView(appState: appState))
+            }
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             appState.isPopoverOpen = true
@@ -223,5 +227,6 @@ public final class StatusBarController: NSObject, NSPopoverDelegate {
     
     public func popoverDidClose(_ notification: Notification) {
         appState.isPopoverOpen = false
+        popover.contentViewController = nil
     }
 }

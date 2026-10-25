@@ -242,25 +242,19 @@ public struct PopoverView: View {
             .padding(.horizontal, 22)
             .padding(.vertical, 12)
             
-            // MARK: - Instant Zero-Lag Tab Content
-            ZStack {
-                OverviewView(appState: appState)
-                    .opacity(selectedTab == .overview ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .overview)
-                
-                AppUsageView(appState: appState)
-                    .opacity(selectedTab == .apps ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .apps)
-                
-                HistoryView(appState: appState)
-                    .opacity(selectedTab == .history ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .history)
-                
-                SettingsView(appState: appState)
-                    .opacity(selectedTab == .settings ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .settings)
+            // MARK: - Memory-Efficient Tab Content (Loads only active tab)
+            Group {
+                switch selectedTab {
+                case .overview:
+                    OverviewView(appState: appState)
+                case .apps:
+                    AppUsageView(appState: appState)
+                case .history:
+                    HistoryView(appState: appState)
+                case .settings:
+                    SettingsView(appState: appState)
+                }
             }
-            .animation(.easeInOut(duration: 0.12), value: selectedTab)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 620, minHeight: 740)

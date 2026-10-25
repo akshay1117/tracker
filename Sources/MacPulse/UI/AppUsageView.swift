@@ -577,29 +577,50 @@ private struct AppUsageRow: View {
 }
 
 // MARK: - Native App Icon View
+/// Thread-safe in-memory cache for 32x32 downsampled application icons to prevent holding 1024x1024 bitmaps in RAM.
+public final class AppIconCache: @unchecked Sendable {
+    public static let shared = AppIconCache()
+    private let cache = NSCache<NSString, NSImage>()
+    
+    private init() {
+        cache.countLimit = 150
+    }
+    
+    public func icon(for bundleIdentifier: String) -> NSImage {
+        let key = bundleIdentifier as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached
+        }
+        
+        let rawImage: NSImage
+        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleIdentifier }),
+           let icon = app.icon {
+            rawImage = icon
+        } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            rawImage = NSWorkspace.shared.icon(forFile: url.path)
+        } else if bundleIdentifier.hasPrefix("daemon.") {
+            rawImage = NSImage(systemSymbolName: "gearshape.2.fill", accessibilityDescription: nil) ?? NSImage()
+        } else {
+            rawImage = NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) ?? NSImage()
+        }
+        
+        // Downsample to a lightweight 32x32 bitmap representation (saves 99% of image memory vs 1024x1024)
+        let thumbnail = NSImage(size: NSSize(width: 32, height: 32), flipped: false) { rect in
+            rawImage.draw(in: rect, from: NSRect(origin: .zero, size: rawImage.size), operation: .sourceOver, fraction: 1.0)
+            return true
+        }
+        
+        cache.setObject(thumbnail, forKey: key)
+        return thumbnail
+    }
+}
+
 struct AppIconImageView: View {
     let bundleIdentifier: String
     let appName: String
     
-    private var iconImage: NSImage {
-        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleIdentifier }) {
-            return app.icon ?? defaultIcon
-        }
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        return defaultIcon
-    }
-    
-    private var defaultIcon: NSImage {
-        if bundleIdentifier.hasPrefix("daemon.") {
-            return NSImage(systemSymbolName: "gearshape.2.fill", accessibilityDescription: nil) ?? NSImage()
-        }
-        return NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) ?? NSImage()
-    }
-    
     var body: some View {
-        Image(nsImage: iconImage)
+        Image(nsImage: AppIconCache.shared.icon(for: bundleIdentifier))
             .resizable()
             .aspectRatio(contentMode: .fit)
     }

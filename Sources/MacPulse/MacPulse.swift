@@ -33,9 +33,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         setupMainMenu()
         
-        // Show main dashboard window on launch so the user immediately gets the UI
-        mainWindowController.showWindow()
-        
         print("MacPulse: Initialized successfully.")
     }
     
