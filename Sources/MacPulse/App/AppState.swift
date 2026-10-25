@@ -78,10 +78,20 @@ public final class AppState: ObservableObject {
     }
     
     @Published public var isLaunchAtLoginEnabled: Bool = false
+    @Published public var isWindowOpen: Bool = false {
+        didSet {
+            sessionManager.appUsageMonitor.isUIVisible = isUIVisible
+        }
+    }
     @Published public var isPopoverOpen: Bool = false {
         didSet {
+            sessionManager.appUsageMonitor.isUIVisible = isUIVisible
             adjustTimerFrequency()
         }
+    }
+    
+    public var isUIVisible: Bool {
+        isPopoverOpen || isWindowOpen
     }
     
     // Live menu bar title
@@ -145,7 +155,9 @@ public final class AppState: ObservableObject {
                 self?.performTick()
             }
         }
-        RunLoop.main.add(sampleTimer!, forMode: .common)
+        if let timer = sampleTimer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
     }
     
     private func adjustTimerFrequency() {

@@ -53,7 +53,15 @@ struct MenuBarRecoveryTests {
         db.insertSession(session)
         db.finalizeSession(session)
         
-        let state = AppState(database: db)
+        let testClamshell = TestClamshellMonitor(isLidClosed: true)
+        let testManager = SessionManager(
+            database: db,
+            powerMonitor: TestPowerMonitor(),
+            networkMonitor: TestNetworkMonitor(),
+            clamshellMonitor: testClamshell,
+            uptimeProvider: TestUptimeProvider()
+        )
+        let state = AppState(database: db, sessionManager: testManager)
         
         // Before restoration check
         #expect(state.aggregateStats.lifetimeEnergyWh == 2.0)

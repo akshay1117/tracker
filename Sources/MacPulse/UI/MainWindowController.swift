@@ -38,12 +38,14 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
         
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+        appState.isWindowOpen = true
         appState.performTick()
     }
     
     public func toggleWindow() {
         if let win = window, win.isVisible {
             win.orderOut(nil)
+            appState.isWindowOpen = false
         } else {
             showWindow()
         }
@@ -53,5 +55,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
     
     public func windowWillClose(_ notification: Notification) {
         // App stays running in background when window is closed
+        appState.isWindowOpen = false
     }
 }

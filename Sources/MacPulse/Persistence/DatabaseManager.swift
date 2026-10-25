@@ -13,7 +13,8 @@ public final class DatabaseManager: @unchecked Sendable {
         if let path = databasePath {
             self.databasePath = path
         } else {
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let fallbackUrl = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fallbackUrl
             let appDir = appSupport.appendingPathComponent("MacPulse", isDirectory: true)
             try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
             self.databasePath = appDir.appendingPathComponent("macpulse.db").path

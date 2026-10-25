@@ -8,11 +8,27 @@ public protocol AppUsageMonitoring: AnyObject, Sendable {
     func resetCurrentSession()
     var currentSessionAppRecords: [AppUsageRecord] { get }
     var frontmostBundleId: String? { get }
+    var isUIVisible: Bool { get set }
 }
 
 /// Native macOS hardware and process monitor tracking per-app screen-on time, energy use, and network data.
 public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendable {
     private let lock = NSLock()
+    
+    // UI visibility state for adaptive background polling
+    private var _isUIVisible: Bool = true
+    public var isUIVisible: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _isUIVisible
+        }
+        set {
+            lock.lock()
+            _isUIVisible = newValue
+            lock.unlock()
+        }
+    }
     
     // Internal state
     private var sessionRecords: [String: AppUsageRecord] = [:]
@@ -28,7 +44,6 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
     private let nettopQueue = DispatchQueue(label: "com.macpulse.nettop", qos: .utility)
     private var isNettopRunning: Bool = false
     private var lastNettopRunTime: Date = Date.distantPast
-    private let nettopMinIntervalSeconds: TimeInterval = 4.0
     
     public init() {
         // Initial scan
@@ -162,7 +177,12 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
         let totalActiveCpuDelta = appCpuDeltas.values.reduce(0.0) { $0 + $1.deltaCpu }
         
         // Compute system interval energy in Watt-hours: E = P * (dt / 3600)
-        let watts = (systemPowerWatts != nil && systemPowerWatts!.isFinite && systemPowerWatts! >= 0) ? systemPowerWatts! : 0.0
+        let watts: Double
+        if let p = systemPowerWatts, p.isFinite && p >= 0 {
+            watts = p
+        } else {
+            watts = 0.0
+        }
         let intervalEnergyWh = watts * (elapsedSeconds / 3600.0)
         
         // 70% dynamic energy allocated by CPU share, 30% base/display overhead allocated to frontmost app
@@ -223,7 +243,8 @@ public final class SystemAppUsageMonitor: AppUsageMonitoring, @unchecked Sendabl
     
     // Assumes lock is held by caller (updateSample)
     private func triggerAsyncNettop(now: Date) {
-        guard !isNettopRunning && now.timeIntervalSince(lastNettopRunTime) >= nettopMinIntervalSeconds else {
+        let minInterval: TimeInterval = _isUIVisible ? 5.0 : 30.0
+        guard !isNettopRunning && now.timeIntervalSince(lastNettopRunTime) >= minInterval else {
             return
         }
         

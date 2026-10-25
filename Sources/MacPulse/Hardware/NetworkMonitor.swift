@@ -147,7 +147,8 @@ public final class SystemNetworkMonitor: NetworkMonitoring, @unchecked Sendable 
                 let sdl = buffer.advanced(by: cursor + MemoryLayout<if_msghdr2>.size).withMemoryRebound(to: sockaddr_dl.self, capacity: 1) { $0.pointee }
                 
                 if sdl.sdl_nlen > 0 {
-                    let nameOffset = cursor + MemoryLayout<if_msghdr2>.size + Int(MemoryLayout<sockaddr_dl>.offset(of: \.sdl_data)!)
+                    let sdlDataOffset = MemoryLayout<sockaddr_dl>.offset(of: \.sdl_data) ?? 12
+                    let nameOffset = cursor + MemoryLayout<if_msghdr2>.size + Int(sdlDataOffset)
                     let nameBuffer = buffer.advanced(by: nameOffset)
                     let name = String(bytes: UnsafeBufferPointer(start: nameBuffer, count: Int(sdl.sdl_nlen)), encoding: .utf8) ?? ""
                     
@@ -169,8 +170,17 @@ public final class TestNetworkMonitor: NetworkMonitoring, @unchecked Sendable {
     private var nextSnapshot: NetworkSnapshot
     private var testInterface: String?
     
-    public init(initial: NetworkSnapshot, interface: String? = "en0") {
-        self.nextSnapshot = initial
+    public init(initial: NetworkSnapshot? = nil, interface: String? = "en0") {
+        self.nextSnapshot = initial ?? NetworkSnapshot(
+            timestamp: Date(),
+            monotonicTime: 0,
+            interfaceName: "en0",
+            isConnected: true,
+            rawBytesIn: 0,
+            rawBytesOut: 0,
+            downloadSpeedBps: 0,
+            uploadSpeedBps: 0
+        )
         self.testInterface = interface
     }
     

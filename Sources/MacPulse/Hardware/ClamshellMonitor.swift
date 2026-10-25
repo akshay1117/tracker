@@ -46,7 +46,14 @@ public final class SystemClamshellMonitor: ClamshellMonitoring, @unchecked Senda
         defer { IOObjectRelease(rootDomain) }
         
         if let val = IORegistryEntryCreateCFProperty(rootDomain, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() {
-            let isClosed = (val as? Bool) ?? (CFBooleanGetValue((val as! CFBoolean)))
+            let isClosed: Bool
+            if let b = val as? Bool {
+                isClosed = b
+            } else if CFGetTypeID(val) == CFBooleanGetTypeID() {
+                isClosed = CFEqual(val, kCFBooleanTrue)
+            } else {
+                isClosed = false
+            }
             lock.lock()
             cachedLidState = isClosed
             hasClamshellSensor = true

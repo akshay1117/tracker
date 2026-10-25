@@ -201,8 +201,18 @@ public final class TestPowerMonitor: PowerMonitoring, @unchecked Sendable {
     private let lock = NSLock()
     private var nextSnapshot: PowerSnapshot
     
-    public init(initial: PowerSnapshot) {
-        self.nextSnapshot = initial
+    public init(initial: PowerSnapshot? = nil) {
+        self.nextSnapshot = initial ?? PowerSnapshot(
+            timestamp: Date(),
+            monotonicTime: 0,
+            systemPowerWatts: 0,
+            isPluggedIn: true,
+            isCharging: false,
+            isDischarging: false,
+            telemetrySource: .appleSiliconPMU,
+            confidence: .directHardware,
+            quality: .high
+        )
     }
     
     public func setSnapshot(_ snapshot: PowerSnapshot) {

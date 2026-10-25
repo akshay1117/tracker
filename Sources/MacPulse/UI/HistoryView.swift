@@ -61,8 +61,8 @@ public struct HistoryView: View {
             }
         }
         
-        return dict.keys.sorted().map { date in
-            let val = dict[date]!
+        return dict.keys.sorted().compactMap { date in
+            guard let val = dict[date] else { return nil }
             return DailySummary(
                 date: date,
                 energyWh: val.energy,
