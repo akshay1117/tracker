@@ -8,7 +8,7 @@ public struct HistoryView: View {
     @State private var selectedSession: UsageSession?
     @State private var chartMetric: ChartMetric = .energy
     @State private var timeRange: HistoryTimeRange = .sevenDays
-    @State private var rangeSessions: [UsageSession] = []
+    @State private var dbSessions: [UsageSession] = []
     @Namespace private var historyMetricNamespace
     @Namespace private var historyTimeRangeNamespace
     
@@ -81,40 +81,47 @@ public struct HistoryView: View {
         let now = Date()
         let days = timeRange.numberOfDays
         let startDate = calendar.date(byAdding: .day, value: -days, to: now) ?? now.addingTimeInterval(-Double(days) * 86400)
-        
-        var fetched = appState.database.fetchSessionsSince(date: startDate)
-        if let current = appState.currentSession, current.startTime >= startDate {
-            if !fetched.contains(where: { $0.id == current.id }) {
-                fetched.append(current)
+        self.dbSessions = appState.database.fetchSessionsSince(date: startDate)
+    }
+    
+    private var allRangeSessions: [UsageSession] {
+        var list = dbSessions
+        if let current = appState.currentSession {
+            let calendar = Calendar.current
+            let now = Date()
+            let days = timeRange.numberOfDays
+            let startDate = calendar.date(byAdding: .day, value: -days, to: now) ?? now.addingTimeInterval(-Double(days) * 86400)
+            if current.startTime >= startDate {
+                if let idx = list.firstIndex(where: { $0.id == current.id }) {
+                    list[idx] = current
+                } else {
+                    list.insert(current, at: 0)
+                }
             }
         }
-        self.rangeSessions = fetched.sorted { $0.startTime > $1.startTime }
+        return list.isEmpty ? appState.recentSessions : list.sorted { $0.startTime > $1.startTime }
     }
     
     private var totalRangeEnergy: Double {
-        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
-        return list.reduce(0.0) { $0 + $1.energyWh }
+        allRangeSessions.reduce(0.0) { $0 + $1.energyWh }
     }
     
     private var totalRangeBytes: Int64 {
-        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
-        return list.reduce(0) { $0 + $1.totalCombinedBytes }
+        allRangeSessions.reduce(0) { $0 + $1.totalCombinedBytes }
     }
     
     private var totalRangeDurationSeconds: TimeInterval {
-        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
-        return list.reduce(0.0) { $0 + $1.durationSeconds }
+        allRangeSessions.reduce(0.0) { $0 + $1.durationSeconds }
     }
     
     private var displayedSessions: [UsageSession] {
-        let list = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
-        return Array(list.prefix(100))
+        Array(allRangeSessions.prefix(100))
     }
     
     private var chartBuckets: [HistoryBucketSummary] {
         let calendar = Calendar.current
         let now = Date()
-        let sessions = rangeSessions.isEmpty ? appState.recentSessions : rangeSessions
+        let sessions = allRangeSessions
         
         switch timeRange {
         case .sevenDays:

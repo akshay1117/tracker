@@ -83,6 +83,7 @@ public final class AppState: ObservableObject {
             sessionManager.appUsageMonitor.isUIVisible = isUIVisible
             if isWindowOpen {
                 refreshData()
+                adjustTimerFrequency()
             }
         }
     }
@@ -91,8 +92,8 @@ public final class AppState: ObservableObject {
             sessionManager.appUsageMonitor.isUIVisible = isUIVisible
             if isPopoverOpen {
                 refreshData()
+                adjustTimerFrequency()
             }
-            adjustTimerFrequency()
         }
     }
     
@@ -104,7 +105,7 @@ public final class AppState: ObservableObject {
     @Published public var statusItemTitle: String = "MacPulse"
     
     // Timers
-    private var sampleTimer: Timer?
+    private var sampleTimer: DispatchSourceTimer?
     private var currentTimerInterval: TimeInterval = 1.0
     
     public init(
@@ -153,23 +154,29 @@ public final class AppState: ObservableObject {
     
     // MARK: - Sampling & Timer Management
     
-    private func startTimer(interval: TimeInterval) {
-        sampleTimer?.invalidate()
+    private func startTimer(interval: TimeInterval = 1.0) {
+        stopTimer()
         currentTimerInterval = interval
-        sampleTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.performTick()
-            }
+        let timer = DispatchSource.makeTimerSource(flags: [], queue: .main)
+        timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(50))
+        timer.setEventHandler { [weak self] in
+            self?.performTick()
         }
+        timer.resume()
+        self.sampleTimer = timer
+    }
+    
+    private func stopTimer() {
         if let timer = sampleTimer {
-            RunLoop.main.add(timer, forMode: .common)
+            timer.cancel()
+            sampleTimer = nil
         }
     }
     
     private func adjustTimerFrequency() {
         // Continuous 1.0s interval for real-time live metric refreshes
         let targetInterval: TimeInterval = 1.0
-        if targetInterval != currentTimerInterval {
+        if sampleTimer == nil || targetInterval != currentTimerInterval {
             startTimer(interval: targetInterval)
         }
     }
@@ -316,7 +323,7 @@ public final class AppState: ObservableObject {
         let ws = NSWorkspace.shared.notificationCenter
         ws.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.sampleTimer?.invalidate()
+                self?.stopTimer()
                 self?.sessionManager.handleWillSleep()
                 self?.refreshData()
             }
@@ -325,7 +332,13 @@ public final class AppState: ObservableObject {
             MainActor.assumeIsolated {
                 self?.sessionManager.handleDidWake()
                 self?.refreshData()
-                self?.adjustTimerFrequency()
+                self?.startTimer(interval: 1.0)
+            }
+        }
+        ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.startTimer(interval: 1.0)
+                self?.performTick()
             }
         }
     }
